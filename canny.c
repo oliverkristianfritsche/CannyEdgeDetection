@@ -1,4 +1,4 @@
-#include <stdio.h>                  /*  Marr-Hildreth.c  (or marrh.c) */
+#include <stdio.h>                  /*  canny.c */
 #include <math.h>
 #include <stdlib.h>
 #define  PICSIZE 256
@@ -9,18 +9,29 @@
          double outpicy[PICSIZE][PICSIZE];
          double magVal[PICSIZE][PICSIZE];
          int    edgeflag[PICSIZE][PICSIZE];
+         int    final[PICSIZE][PICSIZE];
          double maskX[MAXMASK][MAXMASK];
          double maskY[MAXMASK][MAXMASK];
          double convX[PICSIZE][PICSIZE];
          double convY[PICSIZE][PICSIZE];
+         int    histogram[255];
+
+
+void calculateHist(){
+  for(int i=0;i<256;i++){
+    for(int j=0;j<256;j++){
+      histogram[(int)(magVal[i][j])]++;
+    }
+  }
+}
 
 main(argc,argv)
 int argc;
 char **argv;
 {
   int     i,j,p,q,s,t,mr,centx,centy;
-  double  slope,maskval,sum,sig,minival,maxval,ZEROTOL;
-  FILE    *fo1, *fo2,*fo3, *fo4, *fp1, *fopen();
+  double  slope,maskval,sum,sig,minival,maxval,ZEROTOL,percent,threshHigh,threshLow;
+  FILE    *fo1, *fo2,*fo3, *fo4, *fo5, *fp1, *fopen();
   char    *foobar;
 
   argc--; argv++;
@@ -43,6 +54,10 @@ char **argv;
   foobar = *argv;
   fo4=fopen(foobar,"wb");
 
+  argc--; argv++;
+  foobar = *argv;
+  fo5=fopen(foobar,"wb");
+
   fprintf(fo1, "P5\n");
   fprintf(fo1, "%i %i\n", 256, 256);
   fprintf(fo1, "255\n");
@@ -59,6 +74,10 @@ char **argv;
   fprintf(fo4, "%i %i\n", 256, 256);
   fprintf(fo4, "255\n");
 
+  fprintf(fo5, "P5\n");
+  fprintf(fo5, "%i %i\n", 256, 256);
+  fprintf(fo5, "255\n");
+
   argc--; argv++;
   foobar = *argv;
   sig = atof(foobar);
@@ -66,6 +85,10 @@ char **argv;
   argc--; argv++;
   foobar = *argv;
   ZEROTOL = atof(foobar);
+
+  argc--; argv++;
+  foobar = *argv;
+  percent = atof(foobar);
 
   mr = (int)(sig * 3);
   centx = (MAXMASK / 2);
@@ -170,6 +193,59 @@ char **argv;
       }
     }
   }
+
+  double cutoff = percent * PICSIZE * PICSIZE;
+  double area = 0;
+  calculateHist();
+  for(int i=255; i > 0; i--){
+      area += histogram[i];
+      if(area > cutoff){
+        threshHigh = i;
+        break;
+      }
+  }
+  threshLow = threshHigh * .35;
+  printf("threshLow: %f\n",threshLow);
+  printf("threshHigh: %f\n",threshHigh);
+  //final image
+  for(i = 0; i < 256;i++){
+    for(j=0;j <256;j++){
+      if(edgeflag[i][j] ==255){
+        if(magVal[i][j] > threshHigh){
+          edgeflag[i][j] = 0;
+          final[i][j] = 255;
+        } else if (magVal[i][j]<threshLow)
+        {
+          edgeflag[i][j] = 0;
+          final[i][j] = 0;
+        }
+        
+      }
+    }
+  }
+  int moretodo = 1;
+  while(moretodo==1){
+    moretodo=0;
+    for(i = 0; i < 256;i++){
+      for(j=0;j <256;j++){
+        if(edgeflag[i][j] == 255){
+          for (p=-1;p<=1;p++)
+          {
+            for (q=-1;q<=1;q++)
+            {
+              //short cirtuit logic check
+              if(final[i+p][j+q] == 255){
+                edgeflag[i][j] = 0;
+                final[i][j] = 255;
+                moretodo = 1;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   // _________________________________________________________________________
   // Write Images
   // _________________________________________________________________________
@@ -230,5 +306,17 @@ char **argv;
       
     }
   }
+  //write final image
+
+  for (i=0;i<256;i++)
+    { for (j=0;j<256;j++)
+      {
+        fprintf(fo5,"%c",(char)((int)(final[i][j])));
+        
+      }
+    }
+  
 }
+
+
 
